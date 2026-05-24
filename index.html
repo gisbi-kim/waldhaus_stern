@@ -232,9 +232,9 @@
         pointSize: 3,
         zMin: -Infinity,
         zMax: Infinity,
-        exposure: 1.1,
-        saturation: 1.6,
-        gamma: 0.65,
+        exposure: 1.0,
+        saturation: 1.05,
+        gamma: 1.0,
         viewMode: "all",
         showPoses: true,
       };
@@ -243,6 +243,7 @@
         { label: "Model 1: stern-20kf", root: "data" },
         { label: "Model 2: waldhausneos room2 LoGeR", root: "data_model2" },
       ];
+      const posePalette = [0xff1744, 0xe91eac, 0x304ffe, 0x64dd17, 0x00bcd4, 0xffeb3b, 0xff9100, 0x7c4dff];
 
       const pointGroup = new THREE.Group();
       const poseGroup = new THREE.Group();
@@ -347,7 +348,7 @@
         const scale = Math.max(0.04, max.distanceTo(min) * 0.045);
 
         for (const frame of state.frames) {
-          const rig = makeCameraRig(scale);
+          const rig = makeCameraRig(scale, posePalette[frame.frame % posePalette.length]);
           const matrix = new THREE.Matrix4();
           matrix.set(...frame.pose);
           rig.matrixAutoUpdate = false;
@@ -357,31 +358,28 @@
         }
       }
 
-      function makeCameraRig(scale) {
+      function makeCameraRig(scale, color) {
         const group = new THREE.Group();
         const z = scale;
         const w = scale * 0.42;
         const h = scale * 0.26;
-        const vertices = [
-          0, 0, 0, -w, -h, z,
-          0, 0, 0, w, -h, z,
-          0, 0, 0, w, h, z,
-          0, 0, 0, -w, h, z,
-          -w, -h, z, w, -h, z,
-          w, -h, z, w, h, z,
-          w, h, z, -w, h, z,
-          -w, h, z, -w, -h, z,
+        const center = new THREE.Vector3(0, 0, 0);
+        const corners = [
+          new THREE.Vector3(-w, -h, z),
+          new THREE.Vector3(w, -h, z),
+          new THREE.Vector3(w, h, z),
+          new THREE.Vector3(-w, h, z),
         ];
-        const frustum = new THREE.LineSegments(
-          new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3)),
-          new THREE.LineBasicMaterial({ color: 0xf2d15c, transparent: true, opacity: 0.78 })
-        );
-        group.add(frustum);
+        const frameRadius = scale * 0.018;
+        for (const corner of corners) group.add(makeThickLine(center, corner, color, frameRadius));
+        for (let i = 0; i < corners.length; i++) {
+          group.add(makeThickLine(corners[i], corners[(i + 1) % corners.length], color, frameRadius));
+        }
         const axisLength = scale * 0.4;
-        const axisRadius = scale * 0.018;
-        group.add(makeThickAxisLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(axisLength, 0, 0), 0xff4d4d, axisRadius));
-        group.add(makeThickAxisLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, axisLength, 0), 0x55d26a, axisRadius));
-        group.add(makeThickAxisLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, axisLength), 0x4da3ff, axisRadius));
+        const axisRadius = scale * 0.014;
+        group.add(makeThickLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(axisLength, 0, 0), 0xff4d4d, axisRadius));
+        group.add(makeThickLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, axisLength, 0), 0x55d26a, axisRadius));
+        group.add(makeThickLine(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, axisLength), 0x4da3ff, axisRadius));
         return group;
       }
 
@@ -392,7 +390,7 @@
         );
       }
 
-      function makeThickAxisLine(a, b, color, radius) {
+      function makeThickLine(a, b, color, radius) {
         const direction = new THREE.Vector3().subVectors(b, a);
         const length = direction.length();
         const geometry = new THREE.CylinderGeometry(radius, radius, length, 10);
