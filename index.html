@@ -327,9 +327,10 @@
         const extents = new THREE.Vector3().subVectors(max, min);
         const radius = Math.max(0.8, extents.length() * 0.62);
         const aspect = window.innerWidth / window.innerHeight;
-        const viewSize = Math.max(extents.x / Math.max(aspect, 0.001), extents.y, 0.8) * 0.7;
+        const viewSize = Math.max(extents.x / Math.max(aspect, 0.001), extents.y * 0.75, extents.z * 2.6, 0.8) * 0.52;
         controls.target.copy(center);
-        camera.position.set(center.x, center.y, center.z + radius * 2.2);
+        const defaultViewDirection = new THREE.Vector3(-1.35, -1.05, 0.42).normalize();
+        camera.position.copy(center).addScaledVector(defaultViewDirection, radius * 2.45);
         camera.left = -viewSize * aspect;
         camera.right = viewSize * aspect;
         camera.top = viewSize;
@@ -337,6 +338,8 @@
         camera.near = Math.max(0.001, radius / 500);
         camera.far = radius * 40;
         camera.updateProjectionMatrix();
+        camera.lookAt(center);
+        controls.update();
 
         buildPoseGroup();
         updatePoints();
