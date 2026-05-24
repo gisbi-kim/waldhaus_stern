@@ -177,8 +177,8 @@
       </div>
       <div class="row">
         <label for="size">Point size</label>
-        <input id="size" type="range" min="1" max="8" value="3" step="0.1" />
-        <div class="value" id="sizeValue">3.0</div>
+        <input id="size" type="range" min="1" max="8" value="3.6" step="0.1" />
+        <div class="value" id="sizeValue">3.6</div>
       </div>
       <div class="slice-row">
         <label for="zMin">Z min</label>
@@ -227,11 +227,12 @@
         manifest: null,
         frames: [],
         frameIndex: 0,
-        modelIndex: 0,
+        modelIndex: 1,
         confThreshold: 0.4,
-        pointSize: 3,
+        pointSize: 3.6,
         zMin: -Infinity,
-        zMax: Infinity,
+        zMax: 0.14,
+        preferredZMax: 0.14,
         exposure: 1.0,
         saturation: 1.05,
         gamma: 1.0,
@@ -288,6 +289,8 @@
         poseGroup.clear();
         state.frames = [];
         state.frameIndex = 0;
+        state.pointSize = Number(sizeInput.value);
+        state.confThreshold = Number(confInput.value);
         frameInput.value = "0";
         const manifest = await fetch(`${selectedModel.root}/manifest.json`).then((r) => r.json());
         manifest.label = manifest.label || selectedModel.label;
@@ -314,13 +317,13 @@
         const zFloor = Math.floor(min.z * 100) / 100;
         const zCeil = Math.ceil(max.z * 100) / 100;
         state.zMin = zFloor;
-        state.zMax = zCeil;
+        state.zMax = Math.min(state.preferredZMax, zCeil);
         zMinInput.min = String(zFloor);
         zMinInput.max = String(zCeil);
         zMinInput.value = String(zFloor);
         zMaxInput.min = String(zFloor);
         zMaxInput.max = String(zCeil);
-        zMaxInput.value = String(zCeil);
+        zMaxInput.value = String(state.zMax);
         const extents = new THREE.Vector3().subVectors(max, min);
         const radius = Math.max(0.8, extents.length() * 0.62);
         const aspect = window.innerWidth / window.innerHeight;
@@ -558,7 +561,8 @@
         requestAnimationFrame(animate);
       }
 
-      loadData().catch((error) => {
+      updateModelButtons();
+      loadData(1).catch((error) => {
         console.error(error);
         status.textContent = error.message;
       });
