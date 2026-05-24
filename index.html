@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pose / Point Cloud Viewer</title>
+    <title>waldhaus_stern</title>
     <script type="importmap">
       {
         "imports": {
@@ -90,6 +90,13 @@
         margin-top: 10px;
       }
 
+      .model-switch {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
       button {
         min-height: 32px;
         border: 1px solid rgba(255, 255, 255, 0.16);
@@ -138,8 +145,12 @@
     <div id="app"></div>
     <section class="panel">
       <div class="title">
-        <div><strong>Pose / Point Cloud</strong><br />Z-up orbit viewer</div>
+        <div><strong>waldhaus_stern</strong><br /><span id="modelLabel">Z-up orbit viewer</span></div>
         <div class="badge" id="frameBadge">loading</div>
+      </div>
+      <div class="model-switch">
+        <button id="model1" class="active">Model 1</button>
+        <button id="model2">Model 2</button>
       </div>
       <div class="row">
         <label for="frame">Frame</label>
@@ -196,6 +207,7 @@
         manifest: null,
         frames: [],
         frameIndex: 0,
+        modelIndex: 0,
         confThreshold: 0.4,
         pointSize: 3,
         exposure: 1.1,
@@ -204,6 +216,11 @@
         viewMode: "all",
         showPoses: true,
       };
+
+      const dataModels = [
+        { label: "Model 1: stern-20kf", root: "data" },
+        { label: "Model 2: waldhausneos room2 LoGeR", root: "data_model2" },
+      ];
 
       const pointGroup = new THREE.Group();
       const poseGroup = new THREE.Group();
@@ -221,7 +238,10 @@
       const confValue = document.querySelector("#confValue");
       const sizeValue = document.querySelector("#sizeValue");
       const frameBadge = document.querySelector("#frameBadge");
+      const modelLabel = document.querySelector("#modelLabel");
       const status = document.querySelector("#status");
+      const model1Btn = document.querySelector("#model1");
+      const model2Btn = document.querySelector("#model2");
       const singleBtn = document.querySelector("#single");
       const accumBtn = document.querySelector("#accum");
       const allBtn = document.querySelector("#all");
@@ -233,17 +253,28 @@
         return new Type(await response.arrayBuffer());
       }
 
-      async function loadData() {
-        const manifest = await fetch("data/manifest.json").then((r) => r.json());
+      async function loadData(modelIndex = state.modelIndex) {
+        const selectedModel = dataModels[modelIndex];
+        state.modelIndex = modelIndex;
+        status.textContent = `Loading ${selectedModel.label}...`;
+        pointGroup.clear();
+        poseGroup.clear();
+        state.frames = [];
+        state.frameIndex = 0;
+        frameInput.value = "0";
+        const manifest = await fetch(`${selectedModel.root}/manifest.json`).then((r) => r.json());
+        manifest.label = manifest.label || selectedModel.label;
+        manifest.root = selectedModel.root;
         state.manifest = manifest;
         frameInput.max = String(manifest.frames - 1);
+        modelLabel.textContent = manifest.label;
 
         const loaded = [];
         for (const item of manifest.frameData) {
           const [points, conf, rgb] = await Promise.all([
-            loadArray(`data/${item.points}`, Float32Array),
-            loadArray(`data/${item.conf}`, Float32Array),
-            loadArray(`data/${item.rgb}`, Uint8Array),
+            loadArray(`${selectedModel.root}/${item.points}`, Float32Array),
+            loadArray(`${selectedModel.root}/${item.conf}`, Float32Array),
+            loadArray(`${selectedModel.root}/${item.rgb}`, Uint8Array),
           ]);
           loaded.push({ ...item, points, conf, rgb, object: null });
           status.textContent = `Loaded frame ${item.frame + 1}/${manifest.frames}`;
@@ -269,6 +300,7 @@
 
         buildPoseGroup();
         updatePoints();
+        updateModelButtons();
       }
 
       function buildPoseGroup() {
@@ -425,6 +457,11 @@
         allBtn.classList.toggle("active", state.viewMode === "all");
       }
 
+      function updateModelButtons() {
+        model1Btn.classList.toggle("active", state.modelIndex === 0);
+        model2Btn.classList.toggle("active", state.modelIndex === 1);
+      }
+
       frameInput.addEventListener("input", () => {
         state.frameIndex = Number(frameInput.value);
         updatePoints();
@@ -445,6 +482,12 @@
       });
       allBtn.addEventListener("click", () => {
         setViewMode("all");
+      });
+      model1Btn.addEventListener("click", () => {
+        if (state.modelIndex !== 0) loadData(0);
+      });
+      model2Btn.addEventListener("click", () => {
+        if (state.modelIndex !== 1) loadData(1);
       });
       posesBtn.addEventListener("click", () => {
         state.showPoses = !state.showPoses;
