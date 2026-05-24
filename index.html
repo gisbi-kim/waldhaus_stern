@@ -83,6 +83,19 @@
         text-align: right;
       }
 
+      .slice-row {
+        display: grid;
+        grid-template-columns: 44px 1fr 48px 1fr 44px;
+        align-items: center;
+        gap: 8px;
+        min-height: 31px;
+        font-size: 12px;
+      }
+
+      .slice-row label {
+        color: #c8d3dc;
+      }
+
       .toggles {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -167,6 +180,13 @@
         <input id="size" type="range" min="1" max="8" value="3" step="0.1" />
         <div class="value" id="sizeValue">3.0</div>
       </div>
+      <div class="slice-row">
+        <label for="zMin">Z min</label>
+        <input id="zMin" type="range" min="-1" max="1" value="-1" step="0.01" />
+        <div class="value" id="zMinValue">-1.00</div>
+        <input id="zMax" type="range" min="-1" max="1" value="1" step="0.01" />
+        <div class="value" id="zMaxValue">1.00</div>
+      </div>
       <div class="toggles">
         <button id="single">Current</button>
         <button id="accum">Accum</button>
@@ -210,6 +230,8 @@
         modelIndex: 0,
         confThreshold: 0.4,
         pointSize: 3,
+        zMin: -Infinity,
+        zMax: Infinity,
         exposure: 1.1,
         saturation: 1.6,
         gamma: 0.65,
@@ -234,9 +256,13 @@
       const frameInput = document.querySelector("#frame");
       const confInput = document.querySelector("#conf");
       const sizeInput = document.querySelector("#size");
+      const zMinInput = document.querySelector("#zMin");
+      const zMaxInput = document.querySelector("#zMax");
       const frameValue = document.querySelector("#frameValue");
       const confValue = document.querySelector("#confValue");
       const sizeValue = document.querySelector("#sizeValue");
+      const zMinValue = document.querySelector("#zMinValue");
+      const zMaxValue = document.querySelector("#zMaxValue");
       const frameBadge = document.querySelector("#frameBadge");
       const modelLabel = document.querySelector("#modelLabel");
       const status = document.querySelector("#status");
@@ -284,6 +310,16 @@
         const center = new THREE.Vector3(...manifest.center);
         const min = new THREE.Vector3(...manifest.boundsMin);
         const max = new THREE.Vector3(...manifest.boundsMax);
+        const zFloor = Math.floor(min.z * 100) / 100;
+        const zCeil = Math.ceil(max.z * 100) / 100;
+        state.zMin = zFloor;
+        state.zMax = zCeil;
+        zMinInput.min = String(zFloor);
+        zMinInput.max = String(zCeil);
+        zMinInput.value = String(zFloor);
+        zMaxInput.min = String(zFloor);
+        zMaxInput.max = String(zCeil);
+        zMaxInput.value = String(zCeil);
         const extents = new THREE.Vector3().subVectors(max, min);
         const radius = Math.max(0.8, extents.length() * 0.62);
         const aspect = window.innerWidth / window.innerHeight;
@@ -371,7 +407,9 @@
         const positions = [];
         const colors = [];
         for (let i = 0; i < frame.count; i++) {
-          if (frame.conf[i] < state.confThreshold) continue;
+        if (frame.conf[i] < state.confThreshold) continue;
+          const z = frame.points[i * 3 + 2];
+          if (z < state.zMin || z > state.zMax) continue;
           positions.push(frame.points[i * 3], frame.points[i * 3 + 1], frame.points[i * 3 + 2]);
           colors.push(frame.rgb[i * 3] / 255, frame.rgb[i * 3 + 1] / 255, frame.rgb[i * 3 + 2] / 255);
         }
@@ -440,9 +478,11 @@
         frameValue.textContent = String(state.frameIndex);
         confValue.textContent = state.confThreshold.toFixed(2);
         sizeValue.textContent = state.pointSize.toFixed(1);
+        zMinValue.textContent = state.zMin.toFixed(2);
+        zMaxValue.textContent = state.zMax.toFixed(2);
         frameBadge.textContent = `src ${current.sourceFrame}`;
         const label = state.viewMode === "single" ? `Frame ${state.frameIndex}` : state.viewMode === "accum" ? `Frames 0-${state.frameIndex}` : "All frames";
-        status.textContent = `${label}: ${total.toLocaleString()} points shown, floor z=0`;
+        status.textContent = `${label}: ${total.toLocaleString()} points shown, z=${state.zMin.toFixed(2)}..${state.zMax.toFixed(2)}, floor z=0`;
         updateViewButtons();
       }
 
@@ -472,6 +512,16 @@
       });
       sizeInput.addEventListener("input", () => {
         state.pointSize = Number(sizeInput.value);
+        updatePoints();
+      });
+      zMinInput.addEventListener("input", () => {
+        state.zMin = Math.min(Number(zMinInput.value), state.zMax);
+        if (Number(zMinInput.value) > state.zMax) zMinInput.value = String(state.zMin);
+        updatePoints();
+      });
+      zMaxInput.addEventListener("input", () => {
+        state.zMax = Math.max(Number(zMaxInput.value), state.zMin);
+        if (Number(zMaxInput.value) < state.zMin) zMaxInput.value = String(state.zMax);
         updatePoints();
       });
       singleBtn.addEventListener("click", () => {
